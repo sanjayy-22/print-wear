@@ -301,23 +301,72 @@ export default function App() {
 
       const clothingImg = await compileHighResDesign(false, true);
 
-      setRenderProgressPercent(50);
-      setRenderProgress("Sending to WaveSpeed try-on API...");
+      let response;
+      let result;
+      let isStaticDeploy = false;
 
-      const response = await fetch("/api/wavespeed/tryon", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          person_image: personImage,
-          clothing_image: clothingImg,
-          wavespeed_api_key: userApiKey,
-        }),
-      });
+      try {
+        setRenderProgressPercent(50);
+        setRenderProgress("Connecting to local API proxy...");
+        
+        response = await fetch("/api/wavespeed/tryon", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            person_image: personImage,
+            clothing_image: clothingImg,
+            wavespeed_api_key: userApiKey,
+          }),
+        });
 
-      setRenderProgressPercent(80);
-      setRenderProgress("Processing realistic fitting...");
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("text/html") || response.status === 404) {
+          isStaticDeploy = true;
+        } else {
+          result = await response.json();
+        }
+      } catch (err) {
+        isStaticDeploy = true;
+      }
 
-      const result = await response.json();
+      if (isStaticDeploy) {
+        if (!userApiKey) {
+          alert("Static Deploy Detected: To perform virtual try-ons directly in the browser on Netlify, please configure your WaveSpeed API Key in the Settings (gear icon in the top header).");
+          setIsGeneratingRender(false);
+          return;
+        }
+
+        setRenderProgressPercent(60);
+        setRenderProgress("Static site mode: Requesting WaveSpeed AI directly from browser...");
+
+        const directResponse = await fetch("https://api.wavespeed.ai/api/v3/openai/gpt-image-2/edit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${userApiKey}`,
+          },
+          body: JSON.stringify({
+            enable_base64_output: false,
+            enable_sync_mode: true,
+            images: [personImage, clothingImg],
+            output_format: "png",
+            prompt: "Change the clothes of the person in the first image to wear the customized polo shirt shown in the second image. Fit it naturally on their body, adjusting to their posture and lighting.",
+            quality: "medium",
+            resolution: "1k"
+          }),
+        });
+
+        if (!directResponse.ok) {
+          const errText = await directResponse.text();
+          let parsedErr;
+          try {
+            parsedErr = JSON.parse(errText);
+          } catch {}
+          throw new Error(parsedErr?.error || parsedErr?.message || `WaveSpeed API returned status ${directResponse.status}`);
+        }
+
+        result = await directResponse.json();
+      }
 
       if (result.error) {
         console.error("WaveSpeed API error:", result.error);
@@ -329,7 +378,11 @@ export default function App() {
       setRenderProgressPercent(95);
       setRenderProgress("Finalizing try-on...");
 
-      const outputUrl = Array.isArray(result.output) ? result.output[0] : result.output;
+      const outputUrl = Array.isArray(result.outputs) 
+        ? result.outputs[0] 
+        : Array.isArray(result.output) 
+          ? result.output[0] 
+          : (result.output || result.outputs);
 
       setTimeout(() => {
         setFinalMockupUrl(outputUrl || clothingImg);
