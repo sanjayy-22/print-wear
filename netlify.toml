@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/wavespeed/tryon"
+  to = "/.netlify/functions/tryon"
+  status = 200
