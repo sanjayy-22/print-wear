@@ -1,0 +1,6 @@
+{
+  "name": "Virtual T-Shirt Try-On",
+  "description": "An interactive virtual try-on and customization application for polo t-shirts. Upload custom shirts and logos, adjust scaling, positioning, and colors on the left side of the chest in real-time, and get high-quality rendering using Wavespeed AI with Gemini AI styling analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
